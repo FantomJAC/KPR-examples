@@ -214,7 +214,9 @@ class ANCSDiscoveryBehavior extends Behavior {
 		Pins.invoke("/ble/gapStopAdvertising");
 		
 		Pins.invoke("/ble/smSetSecurityParameter", { connection: this.connection, bonding: true });
-		Pins.invoke("/ble/smStartEncryption", { connection: this.connection });
+		if (peripheral.bond < 0) {
+			Pins.invoke("/ble/smStartEncryption", { connection: this.connection });
+		}
 		this.changeState(container, "services");
 	}
 	onEncryptionCompleted(container, result) {
@@ -479,6 +481,22 @@ var MainScreen = Container.template($ => ({
 // Application
 // ----------------------------------------------------------------------------------
 
+const BONDING_FILE_URI = mergeURI(Files.documentsDirectory, "ble_bondings.json");
+let _bondingDB;
+
+function readBond() {
+	if (Files.exists(BONDING_FILE_URI)) {
+		_bondingDB = Files.readJSON(BONDING_FILE_URI);
+	} else {
+		_bondingDB = new Array();
+	}
+}
+
+function storeBond(index, info) {
+	_bondingDB[index] = info;
+	Files.writeJSON(BONDING_FILE_URI, _bondingDB);
+}
+
 var uidMatch = function(uid1, uid2) {
 	return (uid1[0] == uid2[0] && uid1[1] == uid2[1] && uid1[2] == uid2[2] && uid1[3] == uid2[3]);
 }
@@ -501,6 +519,12 @@ application.behavior = Behavior({
 			var connection = response.connection;
 			application.distribute("onPeripheralDisconnected", connection);
 		}
+		else if ("gap/bond/add" == notification) {
+			storeBond(response.index, response.info);
+		}
+		else if ("gap/bond/remove" == notification) {
+			storeBond(response.index, null);
+		}
 		else if ("gatt/service" == notification) {
 			application.distribute("onGattServiceFound", response);
 		}
@@ -518,9 +542,11 @@ application.behavior = Behavior({
 		}
 	},
 	onLaunch(application) {
+		readBond();
  		Pins.configure({
             ble: {
-                require: "/lowpan/ble"
+                require: "/lowpan/ble",
+                bondings: _bondingDB
             }
 		}, success => this.onPinsConfigured(application, success));
 	},
