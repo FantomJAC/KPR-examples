@@ -197,6 +197,16 @@ class ANCSDiscoveryBehavior extends Behavior {
 					notification_source_characteristic: this.notification_source_characteristic,
 					control_point_characteristic: this.control_point_characteristic
 				};
+				Pins.invoke("/ble/gapUpdateConnection", {
+					connection: this.connection,
+					l2cap: true,
+					intervals: {
+						min: 300,
+						max: 600
+					},
+					timeout: 460,
+					latency: 0
+				});
 				this.changeState(container, "ready");
 				container.bubble("onPeripheralPaired", data);
 			}
